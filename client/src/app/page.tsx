@@ -1,153 +1,179 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { NodeInput } from "@/components/NodeInput";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { AlertCircle, Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
-import { Button } from "@/components/ui/button";
-import { motion, AnimatePresence } from "framer-motion";
+import { FormEvent, useMemo, useState } from "react"
+import { AlertCircle, AlertTriangle, Loader2, Send } from "lucide-react"
 
-interface ResponseData {
-  summary?: {
-    total_trees: number;
-    total_cycles: number;
-    largest_tree_root: string;
-  };
-  [key: string]: unknown;
+import { TreeView } from "@/components/TreeView"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
+
+type Hierarchy = {
+  root: string
+  tree: Record<string, string[]>
+  depth?: number
+  has_cycle?: boolean
 }
 
-export default function Dashboard() {
-  const [loading, setLoading] = useState(false);
-  const [response, setResponse] = useState<ResponseData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const { theme, setTheme } = useTheme();
+type BFHLResponse = {
+  is_success: boolean
+  hierarchy?: Hierarchy[]
+  hierarchies?: Hierarchy[]
+  summary: {
+    total_trees: number
+    total_cycles: number
+    largest_tree_root: string
+  }
+  invalid_entries: string[]
+  duplicate_edges: string[]
+}
 
-  const handleSubmit = async (data: string) => {
-    setLoading(true);
-    setError(null);
+const PLACEHOLDER = `["A->B", "hello", "A->C", "A->B", "B->C", "C->A"]`
+
+export default function Dashboard() {
+  const [rawEdgeArrayInput, setRawEdgeArrayInput] = useState(PLACEHOLDER)
+  const [isRequestInFlight, setIsRequestInFlight] = useState(false)
+  const [requestFailureMessage, setRequestFailureMessage] = useState<string | null>(null)
+  const [graphProcessingResponse, setGraphProcessingResponse] = useState<BFHLResponse | null>(null)
+
+  const hierarchyGroups = useMemo(() => {
+    if (!graphProcessingResponse) {
+      return []
+    }
+    return graphProcessingResponse.hierarchy ?? graphProcessingResponse.hierarchies ?? []
+  }, [graphProcessingResponse])
+
+  const submitEdgeTopologyRequest = async (formSubmitEvent: FormEvent<HTMLFormElement>) => {
+    formSubmitEvent.preventDefault()
+    setIsRequestInFlight(true)
+    setRequestFailureMessage(null)
+
     try {
-      const res = await fetch(process.env.NEXT_PUBLIC_API_URL + "/bfhl" || "http://localhost:8080/bfhl", {
+      const decodedInputArray = JSON.parse(rawEdgeArrayInput) as unknown
+      if (!Array.isArray(decodedInputArray) || decodedInputArray.some((edgeToken) => typeof edgeToken !== "string")) {
+        throw new Error("Input must be a JSON array of strings.")
+      }
+
+      const configuredApiBaseUrl = process.env.NEXT_PUBLIC_API_URL
+      if (!configuredApiBaseUrl) {
+        throw new Error("NEXT_PUBLIC_API_URL is not configured.")
+      }
+
+      const backendResponse = await fetch(`${configuredApiBaseUrl}/bfhl`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data })
-      });
-      if (!res.ok) throw new Error("Failed to process request");
-      const result = await res.json();
-      setResponse(result);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred");
+        body: JSON.stringify({ data: decodedInputArray }),
+      })
+
+      if (!backendResponse.ok) {
+        throw new Error(`Request failed with status ${backendResponse.status}.`)
+      }
+
+      const bfhlApiPayload = (await backendResponse.json()) as BFHLResponse
+      setGraphProcessingResponse(bfhlApiPayload)
+    } catch (requestFailure: unknown) {
+      setGraphProcessingResponse(null)
+      setRequestFailureMessage(
+        requestFailure instanceof Error
+          ? requestFailure.message
+          : "Something went wrong while processing your graph."
+      )
     } finally {
-      setLoading(false);
+      setIsRequestInFlight(false)
     }
-  };
+  }
 
   return (
-    <main className="min-h-screen bg-background text-foreground transition-colors duration-300">
-      <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-8">
-        
-        {/* Header section with Theme Toggle */}
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-          className="flex flex-col md:flex-row items-center justify-between gap-4 pb-6 border-b border-border/50"
-        >
-          <div className="space-y-1 text-center md:text-left">
-            <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-br from-primary via-primary/80 to-primary/50 bg-clip-text text-transparent">
-              Node Analyzer System
-            </h1>
-            <p className="text-muted-foreground text-lg font-medium">Bajaj Finserv Logic Engine Diagnostics</p>
-          </div>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="rounded-full shadow-md border-border/60 hover:bg-muted"
-          >
-            <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-primary" />
-            <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-primary" />
-            <span className="sr-only">Toggle theme Mode</span>
-          </Button>
-        </motion.div>
+    <main className="min-h-screen bg-gradient-to-b from-background to-muted/30">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 md:px-8">
+        <section className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Graph Processing Dashboard</h1>
+          <p className="text-sm text-muted-foreground md:text-base">
+            Submit edge arrays, inspect invalid and duplicate entries, and visualize trees and cycles.
+          </p>
+        </section>
 
-        {/* Input Section */}
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="w-full flex justify-center"
-        >
-          <div className="w-full max-w-3xl">
-            <NodeInput onSubmit={handleSubmit} isLoading={loading} />
-          </div>
-        </div>
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle>Input Graph Edges</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={submitEdgeTopologyRequest} className="space-y-4">
+              <Textarea
+                value={rawEdgeArrayInput}
+                onChange={(inputEvent) => setRawEdgeArrayInput(inputEvent.target.value)}
+                className="min-h-36 font-mono text-sm"
+                placeholder={PLACEHOLDER}
+              />
+              <div className="flex justify-end">
+                <Button type="submit" disabled={isRequestInFlight}>
+                  {isRequestInFlight ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                  {isRequestInFlight ? "Processing..." : "Submit"}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
 
-        {/* Error Handling */}
-        <AnimatePresence>
-          {error && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="bg-destructive/10 text-destructive border-l-4 border-destructive p-4 rounded-xl flex items-center space-x-3 shadow-md max-w-3xl mx-auto"
-            >
-              <AlertCircle className="w-6 h-6 flex-shrink-0" />
-              <p className="font-semibold tracking-wide">{error}</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {requestFailureMessage ? (
+          <Alert variant="destructive">
+            <AlertCircle className="size-4" />
+            <AlertTitle>Request Error</AlertTitle>
+            <AlertDescription>{requestFailureMessage}</AlertDescription>
+          </Alert>
+        ) : null}
 
-        {/* Results Section */}
-        <AnimatePresence>
-          {response && (
-            <motion.div 
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, type: "spring", bounce: 0.4 }}
-              className="grid grid-cols-1 lg:grid-cols-2 gap-8"
-             >
-              <Card className="shadow-xl shadow-primary/5 hover:shadow-primary/10 transition-shadow duration-300 border-2 border-border/50 overflow-hidden bg-card/80 backdrop-blur-sm">
-              <CardHeader className="bg-muted/50 border-b">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <span className="bg-primary text-primary-foreground w-6 h-6 rounded-full inline-flex items-center justify-center text-sm">1</span>
-                  Response Summary
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-5 pt-6">
-                <div className="flex justify-between items-center pb-3 border-b">
-                  <span className="text-muted-foreground font-medium">Total Trees</span>
-                  <span className="font-bold text-2xl text-primary">{response.summary?.total_trees || 0}</span>
-                </div>
-                <div className="flex justify-between items-center pb-3 border-b">
-                  <span className="text-muted-foreground font-medium">Total Cycles</span>
-                  <span className="font-bold text-2xl text-primary">{response.summary?.total_cycles || 0}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-medium">Largest Root</span>
-                  <span className="font-bold text-2xl text-primary">{response.summary?.largest_tree_root || "N/A"}</span>
-                </div>
-              </CardContent>
-            </Card>
+        {graphProcessingResponse?.invalid_entries?.length ? (
+          <Alert variant="destructive">
+            <AlertCircle className="size-4" />
+            <AlertTitle>Invalid Entries</AlertTitle>
+            <AlertDescription>
+              {graphProcessingResponse.invalid_entries.join(", ")}
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-              <Card className="shadow-xl shadow-primary/5 hover:shadow-primary/10 transition-shadow duration-300 border-2 border-border/50 bg-card/80 backdrop-blur-sm">
-                <CardHeader className="bg-muted/30 border-b border-border/50">
-                  <CardTitle className="text-xl flex items-center gap-3">
-                    <span className="bg-primary shadow-sm shadow-primary/40 text-primary-foreground w-7 h-7 rounded-full inline-flex items-center justify-center text-sm font-bold">2</span>
-                    Raw Topology Output
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6 h-full">
-                  <div className="bg-background border border-border/50 text-muted-foreground p-5 rounded-xl overflow-x-auto h-[240px] shadow-inner font-mono text-sm leading-relaxed scrollbar-thin scrollbar-thumb-muted-foreground/20">
-                    <pre>{JSON.stringify(response, null, 2)}</pre>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {graphProcessingResponse?.duplicate_edges?.length ? (
+          <Alert variant="warning">
+            <AlertTriangle className="size-4" />
+            <AlertTitle>Duplicate Edges Ignored</AlertTitle>
+            <AlertDescription>{graphProcessingResponse.duplicate_edges.join(", ")}</AlertDescription>
+          </Alert>
+        ) : null}
 
+        <section className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm text-muted-foreground">Total Trees</CardTitle>
+            </CardHeader>
+            <CardContent className="text-3xl font-semibold">
+              {graphProcessingResponse?.summary.total_trees ?? "—"}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm text-muted-foreground">Total Cycles</CardTitle>
+            </CardHeader>
+            <CardContent className="text-3xl font-semibold">
+              {graphProcessingResponse?.summary.total_cycles ?? "—"}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm text-muted-foreground">Largest Tree Root</CardTitle>
+            </CardHeader>
+            <CardContent className="text-3xl font-semibold">
+              {graphProcessingResponse?.summary.largest_tree_root || "—"}
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Tree Visualization</h2>
+          <TreeView hierarchies={hierarchyGroups} />
+        </section>
       </div>
     </main>
-  );
+  )
 }

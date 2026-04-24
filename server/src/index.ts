@@ -8,23 +8,23 @@ import bfhlRoutes from './routes/bfhl';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const configuredPort = process.env.PORT || 8080;
 
 app.use(helmet());
 app.use(corsMiddleware);
 app.use(express.json());
 
-// Routes
 app.use('/bfhl', bfhlRoutes);
 
-// Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Error handling
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(configuredPort, (startupFailure?: Error) => {
+  if (startupFailure) {
+    console.error(`Failed to start server on port ${configuredPort}:`, startupFailure.message);
+    process.exit(1);
+  }
 });

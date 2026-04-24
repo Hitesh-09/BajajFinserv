@@ -1,15 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
 
+type HttpFailureShape = {
+  statusCode?: number;
+  message?: string;
+};
+
 export const errorHandler = (
-  err: any,
-  req: Request,
-  res: Response,
-  next: NextFunction
+  requestFailure: unknown,
+  _requestContext: Request,
+  responseSender: Response,
+  _next: NextFunction
 ): void => {
-  console.error('Error:', err);
-  const statusCode = err.statusCode || 500;
-  res.status(statusCode).json({
+  const failureEnvelope = (typeof requestFailure === 'object' && requestFailure !== null
+    ? requestFailure
+    : {}) as HttpFailureShape;
+  const httpStatusCode = failureEnvelope.statusCode ?? 500;
+  const responseMessage = failureEnvelope.message ?? 'Internal Server Error';
+
+  console.error('Error:', requestFailure);
+  responseSender.status(httpStatusCode).json({
     is_success: false,
-    message: err.message || 'Internal Server Error',
+    message: responseMessage,
   });
 };

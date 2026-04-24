@@ -1,7 +1,7 @@
 export interface HierarchyObject {
   root: string;
-  tree: Record<string, any>;
-  depth: number;
+  tree: Record<string, string[]>;
+  depth?: number;
   has_cycle?: boolean;
 }
 
@@ -18,6 +18,10 @@ export interface BFHLRequest {
 export interface BFHLResponse {
   is_success: boolean;
   user_id: string;
+  email_id: string;
+  college_roll_number: string;
   hierarchy: HierarchyObject[];
   summary: SummaryObject;
+  invalid_entries: string[];
+  duplicate_edges: string[];
 }
