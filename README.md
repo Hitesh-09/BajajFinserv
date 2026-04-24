@@ -1,42 +1,33 @@
-# Bajaj Finserv Coding Challenge Boilerplate
+# Bajaj Finserv / SRM - Full Stack Engineering Challenge
 
-A high-performance, production-ready monorepo initialized for the Bajaj Finserv coding challenge.
+This repository contains my submission for the full-stack coding challenge. It is structured as a monorepo to cleanly separate the client and server environments while maintaining shared dependencies. 
 
-## Project Structure
-- **/server**: Node.js, Express, TypeScript backend.
-- **/client**: Next.js 15 (App Router), TypeScript, Tailwind CSS, Shadcn/UI frontend.
+## Architecture Overview
 
-## Prerequisites
-- Node.js (v18+ recommended)
-- npm
+* **/client**: Built with Next.js 15 (App Router) and TypeScript. The UI utilizes Tailwind CSS and Shadcn for the interactive tree visualization and validation alerts.
+* **/server**: A Node.js/Express backend written in strict TypeScript. The core algorithm—including regex validation, multi-parent resolution, and DFS cycle detection—is isolated in `src/services/GraphProcessor.ts`.
 
-## Getting Started
+## Local Setup
 
-### 1. Installation
-Install dependencies for both client and server from the root directory:
-```bash
-npm install
-```
+Make sure you have Node.js (v18+) installed.
 
-### 2. Environment Variables
-Copy the example environment files in both directories:
-```bash
-# Server
-cp server/.env.example server/.env
+**1. Install dependencies**
+Run this from the root directory to install packages for both workspaces:
+`npm install`
 
-# Client
-cp client/.env.example client/.env
-```
+**2. Environment Variables**
+You will need local `.env` files in both the client and server directories. 
+`cp server/.env.example server/.env`
+`cp client/.env.example client/.env`
 
-### 3. Running Locally
-Run both servers (or each individually):
-```bash
-# To run the backend
-npm run dev -w server
+**3. Run the development servers**
+You can spin up the environments directly from the root folder:
 
-# To run the frontend
-npm run dev -w client
-```
+`# Start the backend (defaults to http://localhost:8080)`
+`npm run dev -w server`
 
-*The backend will be available at http://localhost:8080*
-*The frontend will be available at http://localhost:3000*
+`# Start the frontend (defaults to http://localhost:3000)`
+`npm run dev -w client`
+
+## API Details
+The primary endpoint is `POST /bfhl`. It expects a JSON body with a `data` array of node strings (e.g., `["A->B", "B->C"]`). The backend strictly validates the uppercase `$X->Y$` format, filters duplicates, and calculates the longest root-to-leaf path depth for valid trees.
