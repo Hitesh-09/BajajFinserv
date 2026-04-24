@@ -1,40 +1,32 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { BFHLRequest, BFHLResponse, HierarchyObject, SummaryObject } from '../types';
+import { BFHLRequest, BFHLResponse } from '../types';
+import { TreeEngine } from '../services/TreeEngine';
 
 const router = Router();
 
 // Mock generation for the boilerplate API
 router.post('/', (req: Request<{}, {}, BFHLRequest>, res: Response<BFHLResponse | { is_success: boolean, message: string }>, next: NextFunction) => {
   try {
-    const userId = process.env.USER_ID || 'john_doe_17091999';
+    const activeIdentifier = process.env.USER_ID || 'john_doe_17091999';
+    
+    // Safety check on incoming payload
+    const rawInputPayload = typeof req.body.data === 'string' 
+      ? req.body.data 
+      : JSON.stringify(req.body.data || {});
 
-    // In a real application, you'd parse req.body.data to construct these objects.
-    // For this boilerplate, returning mock structures matching requested types.
-    const hierarchyMock: HierarchyObject[] = [
-      {
-        root: "A",
-        tree: { "A": ["B", "C"], "B": [], "C": [] },
-        depth: 2,
-        has_cycle: false
-      }
-    ];
+    // Offload heavy processing to isolated class file 
+    const { hierarchies, summaryData } = TreeEngine.processGraph(rawInputPayload);
 
-    const summaryMock: SummaryObject = {
-      total_trees: 1,
-      total_cycles: 0,
-      largest_tree_root: "A"
-    };
-
-    const response: BFHLResponse = {
+    const generatedResponse: BFHLResponse = {
       is_success: true,
-      user_id: userId,
-      hierarchy: hierarchyMock,
-      summary: summaryMock
+      user_id: activeIdentifier,
+      hierarchy: hierarchies,
+      summary: summaryData
     };
 
-    res.status(200).json(response);
-  } catch (error) {
-    next(error);
+    res.status(200).json(generatedResponse);
+  } catch (backendFault) {
+    next(backendFault);
   }
 });
 
