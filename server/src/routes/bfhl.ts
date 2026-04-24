@@ -18,7 +18,7 @@ router.post('/', (requestContext: Request<{}, {}, BFHLRequest>, responseSender: 
       user_id: 'hitesh_rajesh_shimpi_09062005',
       email_id: 'hs4621@srmist.edu.in',
       college_roll_number: 'RA2311003011239',
-      hierarchy,
+      hierarchies: hierarchy,
       summary,
       invalid_entries: invalidEntries,
       duplicate_edges: duplicateEdges

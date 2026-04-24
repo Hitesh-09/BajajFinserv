@@ -20,7 +20,7 @@ export interface BFHLResponse {
   user_id: string;
   email_id: string;
   college_roll_number: string;
-  hierarchy: HierarchyObject[];
+  hierarchies: HierarchyObject[];
   summary: SummaryObject;
   invalid_entries: string[];
   duplicate_edges: string[];
